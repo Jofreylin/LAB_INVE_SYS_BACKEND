@@ -10,7 +10,7 @@ public class InventoryProductDTO
 
     public string? Description { get; set; }
 
-    public decimal? PurchasePrice { get; set; }
+    public decimal? CommonPurchasePrice { get; set; }
 
     public decimal? RegularSalePrice { get; set; }
 
@@ -68,6 +68,8 @@ public class InboundDTO
     public int ProductId { get; set; }
     public int WarehouseId { get; set; }
     public int Quantity { get; set; }
+    public DateOnly ProductExpirationDate { get; set; }
+    public decimal PurchasePrice { get; set; }
 }
 
 public class OutboundDTO

@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using INVE_SYS.Context;
 using INVE_SYS.DTO;
 using INVE_SYS.Models;
@@ -80,6 +80,8 @@ namespace INVE_SYS.Services
                 movement.IsDeleted = false;
                 movement.CreatedAt = DateTime.UtcNow;
                 movement.UpdatedAt = DateTime.UtcNow;
+                movement.ProductExpirationDate = model.ProductExpirationDate;
+                movement.PurchasePrice = model.PurchasePrice;
                 movement.MovementDate = DateOnly.FromDateTime(DateTime.UtcNow);
 
                 _context.InventoryMovements.Add(movement);
@@ -164,6 +166,9 @@ namespace INVE_SYS.Services
             try
             {
                 response = await _context.InventoryMovements
+                    .AsNoTracking()
+                    .Include(i => i.Product)
+                    .ThenInclude(p => p.Supplier)
                     .Where(m => m.IsDeleted == false)
                     .ToListAsync();
             }

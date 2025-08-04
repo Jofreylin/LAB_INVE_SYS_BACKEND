@@ -37,6 +37,7 @@ public partial class Reservation
     public bool? IsDeleted { get; set; }
 
     [InverseProperty("Reservation")]
+    [System.Text.Json.Serialization.JsonIgnore]
     public virtual ICollection<InventoryMovement> InventoryMovements { get; set; } = new List<InventoryMovement>();
 
     [ForeignKey("ProductId")]

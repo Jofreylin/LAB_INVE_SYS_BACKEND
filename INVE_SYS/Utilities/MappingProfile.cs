@@ -12,6 +12,7 @@ namespace INVE_SYS.Utilities
             CreateMap<InventoryProductDTO, InventoryProduct>();
             CreateMap<ReserveStockDTO, Reservation>();
             CreateMap<WarehouseDTO, Warehouse>();
+            CreateMap<SupplierDTO, Supplier>();
         }
 
         

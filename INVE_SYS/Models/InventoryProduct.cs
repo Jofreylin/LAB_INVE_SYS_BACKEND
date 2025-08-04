@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -31,8 +31,8 @@ public partial class InventoryProduct
     [Column("is_deleted")]
     public bool? IsDeleted { get; set; }
 
-    [Column("purchase_price", TypeName = "decimal(18, 2)")]
-    public decimal? PurchasePrice { get; set; }
+    [Column("common_purchase_price", TypeName = "decimal(18, 2)")]
+    public decimal? CommonPurchasePrice { get; set; }
 
     [Column("regular_sale_price", TypeName = "decimal(18, 2)")]
     public decimal? RegularSalePrice { get; set; }
@@ -47,9 +47,11 @@ public partial class InventoryProduct
     public int? SupplierId { get; set; }
 
     [InverseProperty("Product")]
+    [System.Text.Json.Serialization.JsonIgnore]
     public virtual ICollection<InventoryMovement> InventoryMovements { get; set; } = new List<InventoryMovement>();
 
     [InverseProperty("Product")]
+    [System.Text.Json.Serialization.JsonIgnore]
     public virtual ICollection<Reservation> Reservations { get; set; } = new List<Reservation>();
 
     [ForeignKey("SupplierId")]
@@ -57,5 +59,6 @@ public partial class InventoryProduct
     public virtual Supplier? Supplier { get; set; }
 
     [InverseProperty("Product")]
+    [System.Text.Json.Serialization.JsonIgnore]
     public virtual ICollection<WarehouseStock> WarehouseStocks { get; set; } = new List<WarehouseStock>();
 }

@@ -47,11 +47,15 @@ public partial class INSYContext : DbContext
             entity.Property(e => e.IsDeleted).HasDefaultValue(false);
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getdate())");
 
-            entity.HasOne(d => d.Product).WithMany(p => p.InventoryMovements).HasConstraintName("FK__Inventory__produ__5070F446");
+            entity.HasOne(d => d.Product).WithMany(p => p.InventoryMovements)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__Inventory__produ__5070F446");
 
             entity.HasOne(d => d.Reservation).WithMany(p => p.InventoryMovements).HasConstraintName("FK__Inventory__reser__52593CB8");
 
-            entity.HasOne(d => d.Warehouse).WithMany(p => p.InventoryMovements).HasConstraintName("FK__Inventory__wareh__5165187F");
+            entity.HasOne(d => d.Warehouse).WithMany(p => p.InventoryMovements)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__Inventory__wareh__5165187F");
         });
 
         modelBuilder.Entity<InventoryProduct>(entity =>

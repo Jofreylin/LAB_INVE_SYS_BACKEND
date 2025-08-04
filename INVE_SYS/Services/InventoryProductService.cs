@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using INVE_SYS.DTO;
 using INVE_SYS.Models;
 using INVE_SYS.Utilities;
@@ -148,6 +148,11 @@ namespace INVE_SYS.Services
                 product.UpdatedAt = DateTime.UtcNow;
                 product.Name = model.Name;
                 product.Description = model.Description;
+                product.CommonPurchasePrice = model.CommonPurchasePrice;
+                product.RegularSalePrice = model.RegularSalePrice;
+                product.MaxSalePrice = model.MaxSalePrice;
+                product.MinSalePrice = model.MinSalePrice;
+                product.SupplierId = model.SupplierId;
 
                 await _context.SaveChangesAsync();
 

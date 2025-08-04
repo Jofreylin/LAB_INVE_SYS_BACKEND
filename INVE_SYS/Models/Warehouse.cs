@@ -32,11 +32,14 @@ public partial class Warehouse
     public bool? IsDeleted { get; set; }
 
     [InverseProperty("Warehouse")]
+    [System.Text.Json.Serialization.JsonIgnore]
     public virtual ICollection<InventoryMovement> InventoryMovements { get; set; } = new List<InventoryMovement>();
 
     [InverseProperty("Warehouse")]
+    [System.Text.Json.Serialization.JsonIgnore]
     public virtual ICollection<Reservation> Reservations { get; set; } = new List<Reservation>();
 
     [InverseProperty("Warehouse")]
+    [System.Text.Json.Serialization.JsonIgnore]
     public virtual ICollection<WarehouseStock> WarehouseStocks { get; set; } = new List<WarehouseStock>();
 }
