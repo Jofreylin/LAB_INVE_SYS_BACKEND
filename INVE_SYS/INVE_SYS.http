@@ -1,0 +1,15 @@
+@INVE_SYS_HostAddress = http://localhost:5136
+
+
+GET {{INVE_SYS_HostAddress}}/api/inventoryproduct
+
+###
+
+POST {{INVE_SYS_HostAddress}}/api/inventoryproduct
+Content-Type: application/json
+
+{
+  
+}
+
+###

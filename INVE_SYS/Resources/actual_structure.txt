@@ -1,0 +1,781 @@
+endpoint controller
+------------------------------
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using INVE_SYS.DTO;
+using INVE_SYS.Services;
+using INVE_SYS.Utilities;
+using INVE_SYS.Models;
+
+namespace INVE_SYS.Controllers
+{
+
+    [Route("api/products")]
+    [ApiController]
+    public class InventoryProductController : ControllerBase
+    {
+        private readonly IInventoryProductService _service;
+
+        public InventoryProductController(IInventoryProductService service)
+        {
+            _service = service;
+        }
+
+        [HttpGet]
+        public async Task<ActionResult<List<InventoryProduct>>> GetList()
+        {
+            var response = await _service.GetList();
+            return Ok(response);
+        }
+
+        [HttpGet("{productId}")]
+        public async Task<ActionResult<InventoryProduct>> GetById(int productId)
+        {
+            var response = await _service.GetById(productId);
+            return Ok(response);
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<InventoryProductResponse>> Create(InventoryProductDTO model)
+        {
+            var response = await _service.Create(model);
+            return Ok(response);
+        }
+
+        [HttpPut("{productId}")]
+        public async Task<ActionResult<InventoryProductResponse>> Update(int productId, InventoryProductDTO model)
+        {
+            var response = await _service.Update(productId, model);
+            return Ok(response);
+        }
+
+        
+        [HttpDelete("{productId}")]
+        public async Task<ActionResult<InventoryProductResponse>> Delete(int productId)
+        {
+            var response = await _service.Delete(productId);
+            return Ok(response);
+        }
+    }
+}
+
+
+---------------
+product service
+---------------
+
+using AutoMapper;
+using INVE_SYS.DTO;
+using INVE_SYS.Models;
+using INVE_SYS.Utilities;
+using Microsoft.EntityFrameworkCore;
+using INVE_SYS.Context;
+using System.Net;
+using static INVE_SYS.Utilities.Enums;
+
+namespace INVE_SYS.Services
+{
+    public interface IInventoryProductService
+    {
+        Task<List<InventoryProduct>> GetList();
+        Task<InventoryProduct> GetById(int productId);
+        Task<InventoryProductResponse> Create(InventoryProductDTO model);
+        Task<InventoryProductResponse> Update(int productId, InventoryProductDTO model);
+        Task<InventoryProductResponse> Delete(int productId);
+    }
+
+    public class InventoryProductService : IInventoryProductService
+    {
+        private readonly INSYContext _context;
+        private readonly IMapper _mapper;
+
+        public InventoryProductService(INSYContext context, IMapper mapper)
+        {
+            _context = context;
+            _mapper = mapper;
+        }
+
+        public async Task<List<InventoryProduct>> GetList()
+        {
+            var response = new List<InventoryProduct>();
+
+            try
+            {
+                var products = await _context.InventoryProducts
+                    .Where(p => p.IsDeleted == false) // Excluir productos eliminados
+                    .ToListAsync();
+
+                response = products;
+            }
+            catch (Exception ex)
+            {
+                throw Extensions.TransformException(
+                    ex,
+                    "Ha ocurrido un error inesperado al obtener la lista de productos.",
+                    new {},
+                    GetType().Name,
+                    Extensions.GetCaller()
+                );
+            }
+
+            return response;
+        }
+
+        public async Task<InventoryProduct> GetById(int productId)
+        {
+            var response = new InventoryProduct();
+
+            try
+            {
+                var product = await _context.InventoryProducts
+                    .FirstOrDefaultAsync(p => p.ProductId == productId && p.IsDeleted == false);
+
+                if (product == null)
+                {
+                    throw new CustomException
+                    {
+                        UserMessage = "Producto no encontrado.",
+                        StatusCode = HttpStatusCode.NotFound,
+                        Type = ExceptionType.Warning
+                    };
+                }
+
+                response = product;
+            }
+            catch (Exception ex)
+            {
+                throw Extensions.TransformException(
+                    ex,
+                    "Ha ocurrido un error inesperado al obtener el producto.",
+                    new { productId },
+                    GetType().Name,
+                    Extensions.GetCaller()
+                );
+            }
+
+            return response;
+        }
+
+        // Crear un nuevo producto
+        public async Task<InventoryProductResponse> Create(InventoryProductDTO model)
+        {
+            var response = new InventoryProductResponse();
+
+            try
+            {
+                var product = _mapper.Map<InventoryProduct>(model);
+                product.CreatedAt = DateTime.UtcNow;
+                product.UpdatedAt = DateTime.UtcNow;
+                product.IsDeleted = false;
+
+                _context.InventoryProducts.Add(product);
+                await _context.SaveChangesAsync();
+
+                response.ProductId = product.ProductId;
+                response.ExecutedAt = product.CreatedAt;
+            }
+            catch (Exception ex)
+            {
+                throw Extensions.TransformException(
+                    ex,
+                    "Ha ocurrido un error inesperado al crear el producto.",
+                    model,
+                    GetType().Name,
+                    Extensions.GetCaller()
+                );
+            }
+
+            return response;
+        }
+
+        
+        public async Task<InventoryProductResponse> Update(int productId, InventoryProductDTO model)
+        {
+            var response = new InventoryProductResponse();
+
+            try
+            {
+                var product = await _context.InventoryProducts
+                    .FirstOrDefaultAsync(p => p.ProductId == productId && p.IsDeleted == false);
+
+                if (product == null)
+                {
+                    throw new CustomException
+                    {
+                        UserMessage = "Producto no encontrado.",
+                        StatusCode = HttpStatusCode.NotFound,
+                        Type = ExceptionType.Warning
+                    };
+                }
+
+                
+                product.UpdatedAt = DateTime.UtcNow;
+                product.Name = model.Name;
+                product.Description = model.Description;
+
+                await _context.SaveChangesAsync();
+
+                response.ProductId = product.ProductId;
+                response.ExecutedAt = product.UpdatedAt;
+            }
+            catch (Exception ex)
+            {
+                throw Extensions.TransformException(
+                    ex,
+                    "Ha ocurrido un error inesperado al actualizar el producto.",
+                    new { productId, model },
+                    GetType().Name,
+                    Extensions.GetCaller()
+                );
+            }
+
+            return response;
+        }
+
+        // Eliminar un producto (eliminación lógica)
+        public async Task<InventoryProductResponse> Delete(int productId)
+        {
+            var response = new InventoryProductResponse();
+
+            try
+            {
+                var product = await _context.InventoryProducts
+                    .FirstOrDefaultAsync(p => p.ProductId == productId && p.IsDeleted == false);
+
+                if (product == null)
+                {
+                    throw new CustomException
+                    {
+                        UserMessage = "Producto no encontrado.",
+                        StatusCode = HttpStatusCode.NotFound,
+                        Type = ExceptionType.Warning
+                    };
+                }
+
+                product.IsDeleted = true;
+                product.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                response.ProductId = product.ProductId;
+                response.ExecutedAt = product.UpdatedAt;
+            }
+            catch (Exception ex)
+            {
+                throw Extensions.TransformException(
+                    ex,
+                    "Ha ocurrido un error inesperado al eliminar el producto.",
+                    new { productId },
+                    GetType().Name,
+                    Extensions.GetCaller()
+                );
+            }
+
+            return response;
+        }
+    }
+}
+
+----------
+product dto
+----------------
+using System.ComponentModel.DataAnnotations;
+
+namespace INVE_SYS.DTO;
+
+public class InventoryProductDTO
+{
+    [StringLength(255)]
+    public string Name { get; set; } = null!;
+
+    public string? Description { get; set; }
+}
+
+public class InventoryProductResponse
+{
+    public int? ProductId { get; set; }
+    public DateTime? ExecutedAt { get; set; }
+}
+
+
+---------
+enum file
+-------------
+namespace INVE_SYS.Utilities
+{
+    public class Enums
+    {
+
+        public enum ExceptionType
+        {
+            Error = 1,
+            Warning = 2,
+            Info = 3
+        }
+
+        public static class CommonConditions
+        {
+            public const int Reserved = 1;
+            public const int Cancelled = 2;
+        }
+
+        public static class MovementsType
+        {
+            public const string Entry = "ENTRY";
+            public const string Exit = "EXIT";
+        }
+    }
+}
+
+---------
+mapping profile file
+-----------
+
+using AutoMapper;
+using INVE_SYS.Models;
+using INVE_SYS.DTO;
+using static INVE_SYS.Utilities.Enums;
+using System.Text.Json;
+
+namespace INVE_SYS.Utilities
+{
+    public class MappingProfile : Profile
+    {
+        public MappingProfile()
+        {
+            CreateMap<InventoryProductDTO, InventoryProduct>();
+        }
+
+        
+    }
+}
+
+
+-----
+program.cs file
+--------
+using INVE_SYS.Context;
+using INVE_SYS.Services;
+using INVE_SYS.Utilities;
+using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+
+builder.Services.AddControllers();
+// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.AddOpenApi();
+var services = builder.Services;
+
+services.AddDbContext<INSYContext>(opt => opt.UseSqlServer(builder.Configuration.GetConnectionString($"DBConnection")));
+
+services.AddScoped<IInventoryProductService, InventoryProductService>();
+
+services.AddAutoMapper(typeof(Program));
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference();
+}
+
+app.UseHttpsRedirection();
+
+app.UseAuthorization();
+
+app.UseMiddleware<ExceptionMiddleware>();
+
+app.MapControllers();
+
+app.Run();
+
+-----------
+app context
+------------
+using System;
+using System.Collections.Generic;
+using INVE_SYS.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace INVE_SYS.Context;
+
+public partial class INSYContext : DbContext
+{
+    public INSYContext()
+    {
+    }
+
+    public INSYContext(DbContextOptions<INSYContext> options)
+        : base(options)
+    {
+    }
+
+    public virtual DbSet<InventoryMovement> InventoryMovements { get; set; }
+
+    public virtual DbSet<InventoryProduct> InventoryProducts { get; set; }
+
+    public virtual DbSet<Reservation> Reservations { get; set; }
+
+    public virtual DbSet<ReservationStatus> ReservationStatuses { get; set; }
+
+    public virtual DbSet<ReservationsView> ReservationsViews { get; set; }
+
+    public virtual DbSet<Warehouse> Warehouses { get; set; }
+
+    public virtual DbSet<WarehouseStock> WarehouseStocks { get; set; }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        => optionsBuilder.UseSqlServer("Name=ConnectionStrings:DBConnection");
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<InventoryMovement>(entity =>
+        {
+            entity.HasKey(e => e.MovementId).HasName("PK__Inventor__AB1D1022500ECF27");
+
+            entity.ToTable("Inventory_Movements", tb => tb.HasTrigger("TR_Inventory_Movement_Insert"));
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getdate())");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false);
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getdate())");
+
+            entity.HasOne(d => d.Product).WithMany(p => p.InventoryMovements).HasConstraintName("FK__Inventory__produ__5070F446");
+
+            entity.HasOne(d => d.Reservation).WithMany(p => p.InventoryMovements).HasConstraintName("FK__Inventory__reser__52593CB8");
+
+            entity.HasOne(d => d.Warehouse).WithMany(p => p.InventoryMovements).HasConstraintName("FK__Inventory__wareh__5165187F");
+        });
+
+        modelBuilder.Entity<InventoryProduct>(entity =>
+        {
+            entity.HasKey(e => e.ProductId).HasName("PK__Inventor__47027DF552994DE7");
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getdate())");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false);
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getdate())");
+        });
+
+        modelBuilder.Entity<Reservation>(entity =>
+        {
+            entity.HasKey(e => e.ReservationId).HasName("PK__Reservat__31384C2993BE6E2B");
+
+            entity.ToTable(tb =>
+                {
+                    tb.HasTrigger("TR_Reservation_Delete");
+                    tb.HasTrigger("TR_Reservation_Insert");
+                    tb.HasTrigger("TR_Reservation_Update");
+                });
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getdate())");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false);
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getdate())");
+
+            entity.HasOne(d => d.Product).WithMany(p => p.Reservations).HasConstraintName("FK__Reservati__produ__49C3F6B7");
+
+            entity.HasOne(d => d.Warehouse).WithMany(p => p.Reservations).HasConstraintName("FK__Reservati__wareh__4AB81AF0");
+        });
+
+        modelBuilder.Entity<ReservationStatus>(entity =>
+        {
+            entity.HasKey(e => e.StatusId).HasName("PK__Reservat__3683B531E8F7E96F");
+
+            entity.Property(e => e.StatusId).ValueGeneratedNever();
+        });
+
+        modelBuilder.Entity<ReservationsView>(entity =>
+        {
+            entity.ToView("ReservationsView");
+        });
+
+        modelBuilder.Entity<Warehouse>(entity =>
+        {
+            entity.HasKey(e => e.WarehouseId).HasName("PK__Warehous__734FE6BF103B0CEB");
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getdate())");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false);
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getdate())");
+        });
+
+        modelBuilder.Entity<WarehouseStock>(entity =>
+        {
+            entity.HasKey(e => e.StockId).HasName("PK__Warehous__E86668627430A754");
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(getdate())");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false);
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(getdate())");
+
+            entity.HasOne(d => d.Product).WithMany(p => p.WarehouseStocks).HasConstraintName("FK__Warehouse__produ__4222D4EF");
+
+            entity.HasOne(d => d.Warehouse).WithMany(p => p.WarehouseStocks).HasConstraintName("FK__Warehouse__wareh__412EB0B6");
+        });
+
+        OnModelCreatingPartial(modelBuilder);
+    }
+
+    partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
+}
+-------
+models from scaffolding (tables, is necessary create DTO to insert data and DTO to bring data, except for the "View", views are used to only bring data because are built in the database with a specific select).
+-------------
+
+[Table("Inventory_Movements")]
+public partial class InventoryMovement
+{
+    [Key]
+    [Column("movement_id")]
+    public int MovementId { get; set; }
+
+    [Column("movement_type")]
+    [StringLength(50)]
+    [Unicode(false)]
+    public string MovementType { get; set; } = null!;
+
+    [Column("movement_date")]
+    public DateOnly MovementDate { get; set; }
+
+    [Column("product_id")]
+    public int? ProductId { get; set; }
+
+    [Column("warehouse_id")]
+    public int? WarehouseId { get; set; }
+
+    [Column("quantity")]
+    public int Quantity { get; set; }
+
+    [Column("reservation_id")]
+    public int? ReservationId { get; set; }
+
+    [Column("created_at", TypeName = "datetime")]
+    public DateTime? CreatedAt { get; set; }
+
+    [Column("updated_at", TypeName = "datetime")]
+    public DateTime? UpdatedAt { get; set; }
+
+    [Column("is_deleted")]
+    public bool? IsDeleted { get; set; }
+
+    [ForeignKey("ProductId")]
+    [InverseProperty("InventoryMovements")]
+    public virtual InventoryProduct? Product { get; set; }
+
+    [ForeignKey("ReservationId")]
+    [InverseProperty("InventoryMovements")]
+    public virtual Reservation? Reservation { get; set; }
+
+    [ForeignKey("WarehouseId")]
+    [InverseProperty("InventoryMovements")]
+    public virtual Warehouse? Warehouse { get; set; }
+}
+
+
+[Table("Inventory_Products")]
+public partial class InventoryProduct
+{
+    [Key]
+    [Column("product_id")]
+    public int ProductId { get; set; }
+
+    [Column("name")]
+    [StringLength(255)]
+    [Unicode(false)]
+    public string Name { get; set; } = null!;
+
+    [Column("description")]
+    [Unicode(false)]
+    public string? Description { get; set; }
+
+    [Column("created_at", TypeName = "datetime")]
+    public DateTime? CreatedAt { get; set; }
+
+    [Column("updated_at", TypeName = "datetime")]
+    public DateTime? UpdatedAt { get; set; }
+
+    [Column("is_deleted")]
+    public bool? IsDeleted { get; set; }
+
+    [InverseProperty("Product")]
+    public virtual ICollection<InventoryMovement> InventoryMovements { get; set; } = new List<InventoryMovement>();
+
+    [InverseProperty("Product")]
+    public virtual ICollection<Reservation> Reservations { get; set; } = new List<Reservation>();
+
+    [InverseProperty("Product")]
+    public virtual ICollection<WarehouseStock> WarehouseStocks { get; set; } = new List<WarehouseStock>();
+}
+
+
+public partial class Reservation
+{
+    [Key]
+    [Column("reservation_id")]
+    public int ReservationId { get; set; }
+
+    [Column("product_id")]
+    public int? ProductId { get; set; }
+
+    [Column("warehouse_id")]
+    public int? WarehouseId { get; set; }
+
+    [Column("reserved_quantity")]
+    public int ReservedQuantity { get; set; }
+
+    [Column("status_id")]
+    public int StatusId { get; set; }
+
+    [Column("reservation_date", TypeName = "datetime")]
+    public DateTime ReservationDate { get; set; }
+
+    [Column("created_at", TypeName = "datetime")]
+    public DateTime? CreatedAt { get; set; }
+
+    [Column("updated_at", TypeName = "datetime")]
+    public DateTime? UpdatedAt { get; set; }
+
+    [Column("is_deleted")]
+    public bool? IsDeleted { get; set; }
+
+    [InverseProperty("Reservation")]
+    public virtual ICollection<InventoryMovement> InventoryMovements { get; set; } = new List<InventoryMovement>();
+
+    [ForeignKey("ProductId")]
+    [InverseProperty("Reservations")]
+    public virtual InventoryProduct? Product { get; set; }
+
+    [ForeignKey("WarehouseId")]
+    [InverseProperty("Reservations")]
+    public virtual Warehouse? Warehouse { get; set; }
+}
+
+
+[Table("Reservation_Status")]
+public partial class ReservationStatus
+{
+    [Key]
+    [Column("status_id")]
+    public int StatusId { get; set; }
+
+    [Column("status_name")]
+    [StringLength(50)]
+    [Unicode(false)]
+    public string StatusName { get; set; } = null!;
+}
+
+
+[Keyless]
+public partial class ReservationsView
+{
+    [Column("reservation_id")]
+    public int ReservationId { get; set; }
+
+    [Column("product_id")]
+    public int? ProductId { get; set; }
+
+    [Column("warehouse_id")]
+    public int? WarehouseId { get; set; }
+
+    [Column("reserved_quantity")]
+    public int ReservedQuantity { get; set; }
+
+    [Column("status_id")]
+    public int StatusId { get; set; }
+
+    [Column("status_name")]
+    [StringLength(50)]
+    [Unicode(false)]
+    public string? StatusName { get; set; }
+
+    [Column("reservation_date", TypeName = "datetime")]
+    public DateTime ReservationDate { get; set; }
+
+    [Column("created_at", TypeName = "datetime")]
+    public DateTime? CreatedAt { get; set; }
+
+    [Column("updated_at", TypeName = "datetime")]
+    public DateTime? UpdatedAt { get; set; }
+
+    [Column("is_deleted")]
+    public bool? IsDeleted { get; set; }
+}
+
+
+public partial class Warehouse
+{
+    [Key]
+    [Column("warehouse_id")]
+    public int WarehouseId { get; set; }
+
+    [Column("name")]
+    [StringLength(255)]
+    [Unicode(false)]
+    public string Name { get; set; } = null!;
+
+    [Column("location")]
+    [StringLength(1000)]
+    [Unicode(false)]
+    public string? Location { get; set; }
+
+    [Column("created_at", TypeName = "datetime")]
+    public DateTime? CreatedAt { get; set; }
+
+    [Column("updated_at", TypeName = "datetime")]
+    public DateTime? UpdatedAt { get; set; }
+
+    [Column("is_deleted")]
+    public bool? IsDeleted { get; set; }
+
+    [InverseProperty("Warehouse")]
+    public virtual ICollection<InventoryMovement> InventoryMovements { get; set; } = new List<InventoryMovement>();
+
+    [InverseProperty("Warehouse")]
+    public virtual ICollection<Reservation> Reservations { get; set; } = new List<Reservation>();
+
+    [InverseProperty("Warehouse")]
+    public virtual ICollection<WarehouseStock> WarehouseStocks { get; set; } = new List<WarehouseStock>();
+}
+
+
+[Table("Warehouse_Stock")]
+public partial class WarehouseStock
+{
+    [Key]
+    [Column("stock_id")]
+    public int StockId { get; set; }
+
+    [Column("warehouse_id")]
+    public int? WarehouseId { get; set; }
+
+    [Column("product_id")]
+    public int? ProductId { get; set; }
+
+    [Column("available_quantity")]
+    public int AvailableQuantity { get; set; }
+
+    [Column("reserved_quantity")]
+    public int ReservedQuantity { get; set; }
+
+    [Column("created_at", TypeName = "datetime")]
+    public DateTime? CreatedAt { get; set; }
+
+    [Column("updated_at", TypeName = "datetime")]
+    public DateTime? UpdatedAt { get; set; }
+
+    [Column("is_deleted")]
+    public bool? IsDeleted { get; set; }
+
+    [ForeignKey("ProductId")]
+    [InverseProperty("WarehouseStocks")]
+    public virtual InventoryProduct? Product { get; set; }
+
+    [ForeignKey("WarehouseId")]
+    [InverseProperty("WarehouseStocks")]
+    public virtual Warehouse? Warehouse { get; set; }
+}
+
+
+
+

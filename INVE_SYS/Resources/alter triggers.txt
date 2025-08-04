@@ -1,0 +1,141 @@
+USE [INVENTORY_DB_SERV1]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER TRIGGER [dbo].[TR_Inventory_Movement_Insert]
+ON [dbo].[Inventory_Movements]
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    UPDATE ws
+    SET 
+        available_quantity = CASE 
+                                WHEN i.movement_type = 'ENTRY' THEN ws.available_quantity + i.quantity
+                                WHEN i.movement_type = 'EXIT' THEN ws.available_quantity - i.quantity
+                                ELSE ws.available_quantity
+                             END,
+        reserved_quantity = CASE 
+                                WHEN i.movement_type = 'EXIT' AND i.reservation_id IS NOT NULL THEN ws.reserved_quantity + i.quantity
+                                WHEN i.movement_type = 'ENTRY' AND i.reservation_id IS NOT NULL THEN ws.reserved_quantity - i.quantity
+                                ELSE ws.reserved_quantity
+                            END
+    FROM Warehouse_Stock ws
+    INNER JOIN inserted i 
+        ON ws.warehouse_id = i.warehouse_id 
+        AND ws.product_id = i.product_id;
+END;
+
+USE [INVENTORY_DB_SERV1]
+GO
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER TRIGGER [dbo].[TR_Reservation_Delete]
+ON [dbo].[Reservations]
+AFTER DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Insertar movimiento de entrada por eliminación física
+    INSERT INTO Inventory_Movements (
+        movement_type, 
+        movement_date, 
+        product_id, 
+        warehouse_id, 
+        quantity, 
+        reservation_id
+    )
+    SELECT 
+        'ENTRY',                -- Tipo de movimiento: entrada
+        GETDATE(),              -- Fecha actual
+        d.product_id, 
+        d.warehouse_id, 
+        d.reserved_quantity,    -- Cantidad a devolver
+        d.reservation_id        -- ID de la reservación eliminada
+    FROM deleted d;
+END;
+
+USE [INVENTORY_DB_SERV1]
+GO
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER TRIGGER [dbo].[TR_Reservation_Insert]
+ON [dbo].[Reservations]
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    INSERT INTO Inventory_Movements (
+        movement_type, 
+        movement_date, 
+        product_id, 
+        warehouse_id, 
+        quantity, 
+        reservation_id
+    )
+    SELECT 
+        'EXIT',                -- Tipo de movimiento: salida por reserva
+        GETDATE(),             -- Fecha actual
+        product_id, 
+        warehouse_id, 
+        reserved_quantity,     -- Cantidad reservada
+        reservation_id         -- ID de la reservación
+    FROM inserted
+    WHERE status_id = 1; --reserved
+END;
+
+
+USE [INVENTORY_DB_SERV1]
+GO
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER TRIGGER [dbo].[TR_Reservation_Update]
+ON [dbo].[Reservations]
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Solo actuar si cambia el estado a Cancelado o se marca como eliminado
+    IF UPDATE(status_id) OR UPDATE(is_deleted)
+    BEGIN
+        -- Insertar movimiento de entrada por cancelación
+        INSERT INTO Inventory_Movements (
+            movement_type, 
+            movement_date, 
+            product_id, 
+            warehouse_id, 
+            quantity, 
+            reservation_id
+        )
+        SELECT 
+            'ENTRY',                -- Tipo de movimiento: entrada por cancelación
+            GETDATE(),              -- Fecha actual
+            d.product_id, 
+            d.warehouse_id, 
+            d.reserved_quantity,    -- Cantidad a devolver
+            d.reservation_id        -- ID de la reservación original
+        FROM deleted d
+        INNER JOIN inserted i 
+            ON d.reservation_id = i.reservation_id
+        WHERE 
+            (i.status_id = 2 AND d.status_id = 1) -- Cancelación explícita
+            OR (i.is_deleted = 1 AND d.is_deleted = 0);        -- Eliminación lógica
+    END;
+END;
+
+

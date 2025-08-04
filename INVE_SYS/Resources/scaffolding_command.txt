@@ -1,0 +1,1 @@
+dotnet ef dbcontext scaffold Name=ConnectionStrings:DBConnection Microsoft.EntityFrameworkCore.SqlServer --output-dir Models --force --data-annotations --project INVE_SYS  --context "INSYContext" --context-dir Context
