@@ -1,4 +1,4 @@
-﻿using INVE_SYS.DTO;
+using INVE_SYS.DTO;
 using INVE_SYS.Models;
 using INVE_SYS.Services;
 using Microsoft.AspNetCore.Http;
@@ -35,6 +35,13 @@ namespace INVE_SYS.Controllers
         public async Task<ActionResult<List<InventoryMovement>>> GetMovements()
         {
             var response = await _service.GetMovements();
+            return Ok(response);
+        }
+
+        [HttpGet("monthly-stats")]
+        public async Task<ActionResult<ProductMovementStatsDTO>> GetMonthlyStats([FromQuery] int? year = null)
+        {
+            var response = await _service.GetMonthlyStats(year);
             return Ok(response);
         }
     }

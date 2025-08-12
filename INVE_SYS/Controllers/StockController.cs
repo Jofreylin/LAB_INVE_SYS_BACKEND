@@ -1,4 +1,4 @@
-﻿using INVE_SYS.DTO;
+using INVE_SYS.DTO;
 using INVE_SYS.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -27,6 +27,13 @@ namespace INVE_SYS.Controllers
         public async Task<ActionResult<ReleaseStockResponse>> Release(ReleaseStockDTO model)
         {
             var response = await _service.Release(model);
+            return Ok(response);
+        }
+
+        [HttpGet("reservations")]
+        public async Task<ActionResult<List<ReservationListResponse>>> GetReservations()
+        {
+            var response = await _service.GetReservations();
             return Ok(response);
         }
     }

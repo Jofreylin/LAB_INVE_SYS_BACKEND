@@ -14,6 +14,7 @@ namespace INVE_SYS.Services
         Task<InventoryMovementResponse> Inbound(InboundDTO model);
         Task<InventoryMovementResponse> Outbound(OutboundDTO model);
         Task<List<InventoryMovement>> GetMovements();
+        Task<ProductMovementStatsDTO> GetMonthlyStats(int? year = null);
     }
 
     public class InventoryService : IInventoryService
@@ -178,6 +179,65 @@ namespace INVE_SYS.Services
                     ex,
                     "Error al listar movimientos de inventario.",
                     new { },
+                    GetType().Name,
+                    Extensions.GetCaller()
+                );
+            }
+            return response;
+        }
+
+        public async Task<ProductMovementStatsDTO> GetMonthlyStats(int? year = null)
+        {
+            var response = new ProductMovementStatsDTO();
+            try
+            {
+                // Si no se proporciona un año, usar el año actual
+                int targetYear = year ?? DateTime.Now.Year;
+
+                // Obtener todos los movimientos del año especificado
+                var movements = await _context.InventoryMovements
+                    .AsNoTracking()
+                    .Where(m => m.IsDeleted == false && 
+                           m.MovementDate.Year == targetYear)
+                    .ToListAsync();
+
+                // Agrupar por mes y tipo de movimiento
+                var monthlyData = movements
+                    .GroupBy(m => new { m.MovementDate.Month })
+                    .Select(g => new
+                    {
+                        Month = g.Key.Month,
+                        TotalInbound = g.Where(m => m.MovementType == Enums.MovementsType.Entry).Sum(m => m.Quantity),
+                        TotalOutbound = g.Where(m => m.MovementType == Enums.MovementsType.Exit).Sum(m => m.Quantity),
+                        TotalPurchaseCost = g.Where(m => m.MovementType == Enums.MovementsType.Entry && m.PurchasePrice.HasValue)
+                            .Sum(m => m.PurchasePrice.Value * m.Quantity)
+                    })
+                    .OrderBy(x => x.Month)
+                    .ToList();
+
+                // Crear estadísticas para todos los meses (1-12), incluso si no hay datos
+                for (int month = 1; month <= 12; month++)
+                {
+                    var monthData = monthlyData.FirstOrDefault(m => m.Month == month);
+                    
+                    response.MonthlyStats.Add(new MonthlyStatsDTO
+                    {
+                        Year = targetYear,
+                        Month = month,
+                        MonthName = System.Globalization.CultureInfo.CreateSpecificCulture("es-ES")
+                            .DateTimeFormat.GetMonthName(month),
+                        TotalInbound = monthData?.TotalInbound ?? 0,
+                        TotalOutbound = monthData?.TotalOutbound ?? 0,
+                        TotalPurchaseCost = monthData?.TotalPurchaseCost ?? 0
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                throw Extensions.TransformException(
+                    ex,
+                    "Error al obtener estadísticas mensuales de movimientos.",
+                    new { year },
                     GetType().Name,
                     Extensions.GetCaller()
                 );

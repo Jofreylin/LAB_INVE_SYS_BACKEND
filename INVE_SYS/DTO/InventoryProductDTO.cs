@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace INVE_SYS.DTO;
@@ -90,4 +90,16 @@ public class ProductAvailabilityResponse
     public int ProductId { get; set; }
     public string? ProductName { get; set; }
     public int TotalAvailable { get; set; }
+}
+
+public class ReservationListResponse
+{
+    public int ReservationId { get; set; }
+    public int ProductId { get; set; }
+    public string? ProductName { get; set; }
+    public int WarehouseId { get; set; }
+    public string? WarehouseName { get; set; }
+    public int ReservedQuantity { get; set; }
+    public int StatusId { get; set; }
+    public DateTime ReservationDate { get; set; }
 }

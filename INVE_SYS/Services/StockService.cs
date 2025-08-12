@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using INVE_SYS.Context;
 using INVE_SYS.DTO;
 using INVE_SYS.Models;
@@ -13,6 +13,7 @@ namespace INVE_SYS.Services
     {
         Task<ReserveStockResponse> Reserve(ReserveStockDTO model);
         Task<ReleaseStockResponse> Release(ReleaseStockDTO model);
+        Task<List<ReservationListResponse>> GetReservations();
     }
     public class StockService : IStockService
     {
@@ -109,6 +110,45 @@ namespace INVE_SYS.Services
                     ex,
                     "Error al liberar stock reservado.",
                     model,
+                    GetType().Name,
+                    Extensions.GetCaller()
+                );
+            }
+            return response;
+        }
+
+        public async Task<List<ReservationListResponse>> GetReservations()
+        {
+            var response = new List<ReservationListResponse>();
+            try
+            {
+                var reservations = await _context.Reservations
+                    .Where(r => r.IsDeleted == false)
+                    .Include(r => r.Product)
+                    .Include(r => r.Warehouse)
+                    .ToListAsync();
+
+                foreach (var r in reservations)
+                {
+                    response.Add(new ReservationListResponse
+                    {
+                        ReservationId = r.ReservationId,
+                        ProductId = r.ProductId ?? 0,
+                        ProductName = r.Product?.Name,
+                        WarehouseId = r.WarehouseId ?? 0,
+                        WarehouseName = r.Warehouse?.Name,
+                        ReservedQuantity = r.ReservedQuantity,
+                        StatusId = r.StatusId,
+                        ReservationDate = r.ReservationDate
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                throw Extensions.TransformException(
+                    ex,
+                    "Error al consultar reservaciones de stock.",
+                    new { },
                     GetType().Name,
                     Extensions.GetCaller()
                 );
